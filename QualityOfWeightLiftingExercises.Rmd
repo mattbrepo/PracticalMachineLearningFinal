@@ -1,0 +1,80 @@
+---
+title: "Predict Quality of Weight Lifting Exercises"
+author: ""
+date: "15 febbraio 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(caret)
+library(randomForest)
+```
+
+## Synopsis
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website [here](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har).
+
+## Data Processing
+
+Let's load the data:
+
+```{r}
+training <- read.csv('data_in/pml-training.csv')
+testing <- read.csv('data_in/pml-testing.csv')
+str(training$classe)
+```
+
+there are several values NA, #DIV/0!, we get rid of them and also the  zero 
+variance predictors (using nearZeroVar):
+
+```{r}
+training <- training[, -nearZeroVar(training)]
+NARows <- sapply(training, function(x) mean(is.na(x))) > 0.95
+training <- training[, NARows == FALSE]
+```
+
+we remove the first 5 columns because they are not significant:
+
+```{r}
+training <- training[, -(1:5)]
+testing <- testing[, -(1:5)]
+```
+
+let's divide the original training data in a pure training set (training1, 70%) 
+and a validation set (30%):
+
+```{r}
+inTrain  <- createDataPartition(training$classe, p = 0.7, list = FALSE)
+training1 <- training[inTrain, ]
+validation  <- training[-inTrain, ]
+```
+
+## Random Forest
+
+We build a random forest model because is one of the most accurate techniques:
+
+```{r cache=TRUE}
+modelFit <- train(classe ~ ., data = training1, method = "rf", 
+                          trControl = trainControl(method = "cv", number = 3, verboseIter = FALSE))
+modelFit$finalModel
+```
+
+and we use it to predict the _classe_ of the validation dataset and compare it 
+to the true value:
+
+```{r cache=TRUE}
+pred <- predict(modelFit, newdata=validation)
+confusionMatrix(pred, validation$classe)
+```
+
+The model shows a very high accuracy out-of-sample (> 99%). The related out-of-sample 
+error is 0.0019.
+
+The predicted _classe_ of the testing data set is:
+
+```{r}
+pred_testing <- predict(modelFit, newdata = testing)
+pred_testing
+```
